@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Afterhours -> AutoClip: choose and download a cohesive Dropbox footage pack.
 
-Uses the EXISTING Dropbox scene index. Runs locally in Codespaces with a Dropbox
-OAuth access token set in an environment variable (never commit credentials).
+Uses the EXISTING Dropbox scene index. Runs locally in Codespaces with Dropbox OAuth refresh credentials stored in
+Codespaces secrets (never commit credentials).
 Does not change AutoClip music analysis or edit planning.
 
 Usage:
@@ -19,6 +19,7 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+import urllib.parse
 
 ROOT = Path(__file__).resolve().parents[1]
 MEDIA = ROOT / "public" / "afterhours" / "media"
@@ -32,6 +33,47 @@ VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm"}
 SKATE = re.compile(r"skateboard|skateboarding|skatelife|skaterboy|sk8|tony.?hawk|kader.?sylla|paul.?rodriguez|\bskate\b", re.I)
 EXCLUDE = re.compile(r"basketball|nba|football|fifa|soccer|beach|surf|summer.?night|nightclub|fashion.?show|warehouse.sale|streetwear", re.I)
 TEXT_RISK = re.compile(r"\bpov\b|lyrics|caption|text.?overlay", re.I)
+
+
+def get_access_token() -> str:
+    """Get a fresh temporary Dropbox token using the existing Colab refresh credentials."""
+    refresh = os.environ.get("AFTERHOURS_DROPBOX_REFRESH_TOKEN", "").strip()
+    app_key = os.environ.get("AFTERHOURS_DROPBOX_APP_KEY", "").strip()
+    if refresh and app_key:
+        data = urllib.parse.urlencode({
+            "grant_type": "refresh_token",
+            "refresh_token": refresh,
+            "client_id": app_key,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://api.dropboxapi.com/oauth2/token",
+            data=data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as response:
+                token = json.load(response)["access_token"]
+            print("AUTH: Obtained fresh Dropbox access token.")
+            return token
+        except urllib.error.HTTPError as error:
+            raise RuntimeError(
+                f"Dropbox refresh token exchange failed (HTTP {error.code}). "
+                "Verify Codespaces secrets match the original Dropbox app."
+            ) from None
+    if refresh or app_key:
+        raise RuntimeError(
+            "Set BOTH AFTERHOURS_DROPBOX_APP_KEY and AFTERHOURS_DROPBOX_REFRESH_TOKEN "
+            "as Codespaces secrets, then restart the Codespace."
+        )
+    token = os.environ.get("DROPBOX_ACCESS_TOKEN", "").strip()
+    if token:
+        print("AUTH: Using temporary access token, which may expire.")
+        return token
+    raise RuntimeError(
+        "Missing Dropbox credentials: add AFTERHOURS_DROPBOX_APP_KEY and "
+        "AFTERHOURS_DROPBOX_REFRESH_TOKEN as Codespaces secrets."
+    )
 
 
 def dropbox_download(file_id: str, dest: Path, token: str) -> None:
@@ -77,9 +119,10 @@ def main() -> None:
     args = ap.parse_args()
     if not 3 <= args.count <= 12:
         ap.error("--count must be between 3 and 12")
-    token = os.environ.get("DROPBOX_ACCESS_TOKEN", "").strip()
-    if not token:
-        sys.exit("SETUP NEEDED: DROPBOX_ACCESS_TOKEN is missing. Configure a Dropbox API OAuth token as a Codespaces secret; never paste it into chat or a committed file.")
+    try:
+        token = get_access_token()
+    except RuntimeError as error:
+        sys.exit(str(error))
     MEDIA.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         local_index = Path(tmp) / "scene_index.json"
