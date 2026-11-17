@@ -1,7 +1,7 @@
 // Development-only import bridge for Afterhours-prepared local media.
 // Preserves AutoClip's own decode, analysis and planning pipeline.
 import { addFiles } from '../state/actions'
-import { toast } from '../state/store'
+import { toast, updateSettings } from '../state/store'
 
 interface MediaItem { path: string; name?: string }
 interface PackageManifest { song: MediaItem; clips: MediaItem[] }
@@ -39,6 +39,9 @@ export async function importAfterhoursPackage(): Promise<void> {
       throw new Error('Manifest requires one song and 1–40 clips.')
     const items = [manifest.song, ...manifest.clips]
     const files = await Promise.all(items.map(asFile))
+    // Preserve the original footage proportions on a 9:16 black canvas.
+    // Apply BEFORE media analysis/auto-edit so the first draft renders correctly.
+    updateSettings({ aspect: '9:16', framing: 'bars' })
     // Runs the original AutoClip import, beat-analysis, scene-analysis and auto-edit paths.
     await addFiles(files)
     toast(`Afterhours imported song and ${manifest.clips.length} clips; AutoClip is analyzing them.`, 'success')
