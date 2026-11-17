@@ -13,7 +13,13 @@ if not directory.is_dir():
 
 audio_exts = {".mp3", ".wav", ".m4a", ".flac", ".aac"}
 video_exts = {".mp4", ".mov", ".webm", ".m4v"}
-files = sorted((p for p in directory.iterdir() if p.is_file()), key=lambda p: p.name)
+# Codespaces uploads sometimes land in afterhours/ rather than afterhours/media/.
+# Search both locations; copy all selected media to media/ for the browser importer.
+files = sorted(
+    (p for folder in (directory, directory.parent) for p in folder.iterdir()
+     if p.is_file() and p.suffix.lower() in (audio_exts | video_exts)),
+    key=lambda p: (p.parent != directory, p.name),
+)
 audios = [p for p in files if p.suffix.lower() in audio_exts and not p.stem == "afterhours-song"]
 videos = [p for p in files if p.suffix.lower() in video_exts and not p.stem.startswith("afterhours-clip-")]
 
@@ -25,7 +31,7 @@ if not videos:
 if not audios or not videos:
     raise SystemExit(
         f"ERROR: Found {len(audios)} song(s) and {len(videos)} videos. "
-        "Add at least one audio file and one video in public/afterhours/media."
+        "Add at least one audio file and one video in public/afterhours/ or public/afterhours/media."
     )
 if len(videos) > 40:
     raise SystemExit(f"ERROR: {len(videos)} videos found, but the development importer permits at most 40.")
