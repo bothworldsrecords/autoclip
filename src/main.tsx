@@ -22,7 +22,13 @@ if (import.meta.env.DEV) {
 // Afterhours integration spike: opt-in import of locally prepared media.
 // AutoClip's existing song, footage, editing and export logic stays unchanged.
 if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('afterhoursImport') === '1') {
-  void import('./afterhours/importPackage').then(({ importAfterhoursPackage }) => importAfterhoursPackage()).catch((error) => {
+  // Arm export BEFORE import: the normal AutoClip analysis creates a draft asynchronously.
+  const params = new URLSearchParams(window.location.search)
+  const autoExport = params.get('afterhoursExport') === '1'
+  void (autoExport ? import('./afterhours/autoExport').then(({ armAfterhoursAutoExport }) => armAfterhoursAutoExport()) : Promise.resolve())
+    .then(() => import('./afterhours/importPackage'))
+    .then(({ importAfterhoursPackage }) => importAfterhoursPackage())
+    .catch((error) => {
     console.error('[Afterhours] Import failed:', error)
   })
 }
