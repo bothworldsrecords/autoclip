@@ -20,7 +20,7 @@ files = sorted(
      if p.is_file() and p.suffix.lower() in (audio_exts | video_exts)),
     key=lambda p: (p.parent != directory, p.name),
 )
-audios = [p for p in files if p.suffix.lower() in audio_exts and not p.stem == "afterhours-song"]
+audios = [p for p in files if p.suffix.lower() in audio_exts and p.stem != "afterhours-song"]
 videos = [p for p in files if p.suffix.lower() in video_exts and not p.stem.startswith("afterhours-clip-")]
 
 if not audios:
@@ -42,7 +42,21 @@ def clean_copy(source: Path, stem: str) -> Path:
         shutil.copy2(source, target)
     return target
 
-song = clean_copy(audios[0], "afterhours-song")
+# The newest original audio is normally the newly uploaded excerpt.
+# Display what was selected; --song can explicitly select a specific file.
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--song", help="Exact filename of the intended audio file, if needed")
+args = parser.parse_args()
+if args.song:
+    matched = [p for p in audios if p.name == args.song]
+    if len(matched) != 1:
+        raise SystemExit(f"ERROR: Song {args.song!r} not found; choices: {[p.name for p in audios]}")
+    chosen_song = matched[0]
+else:
+    chosen_song = max(audios, key=lambda p: p.stat().st_mtime_ns)
+print(f"SELECTED SONG: {chosen_song.name}")
+song = clean_copy(chosen_song, "afterhours-song")
 clips = [clean_copy(video, f"afterhours-clip-{i:02d}") for i, video in enumerate(videos, 1)]
 manifest = {
     "song": {"path": f"/afterhours/media/{song.name}"},
