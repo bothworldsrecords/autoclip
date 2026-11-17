@@ -18,3 +18,11 @@ if (import.meta.env.DEV) {
     Object.assign(window, { autoclip: { ...store, ...actions, playhead: ph.playhead } })
   })
 }
+
+// Afterhours integration spike: opt-in import of locally prepared media.
+// AutoClip's existing song, footage, editing and export logic stays unchanged.
+if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('afterhoursImport') === '1') {
+  void import('./afterhours/importPackage').then(({ importAfterhoursPackage }) => importAfterhoursPackage()).catch((error) => {
+    console.error('[Afterhours] Import failed:', error)
+  })
+}
