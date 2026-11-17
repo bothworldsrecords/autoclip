@@ -40,3 +40,17 @@ Using a short audio file and two local clips, verify:
 - A manual MP4 export works as usual.
 
 Only after those checks pass should we automate the export action.
+
+## Automatic MP4 export test (new, unverified in Codespaces)
+
+After generating the manifest for the intended snippet, reload the private forwarded Vite app with:
+
+```text
+?afterhoursImport=1&afterhoursExport=1
+```
+
+The development-only export bridge waits until the song and all videos finish analysis and an AutoClip draft is created, then calls AutoClip's existing audio mix and MP4 renderer. It uses **720 × 1280, 30 fps, 9:16 with black bars** for the first technical test (not the eventual quality target). It tries to download `afterhours-autoclip-test.mp4` automatically and displays a button to download the same rendered file if browser download policy blocks it.
+
+The page must remain open while the in-browser WebCodecs renderer runs. This is **not** a fully unattended server job, and a render has not yet been validated in the user's Codespace. Check browser console and the Afterhours status panel if it fails.
+
+Run `corepack pnpm typecheck` and `corepack pnpm test` in a separate Codespaces terminal before the test; the development server can remain running. Do not upload media or API tokens to Git.
